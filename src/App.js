@@ -1,14 +1,11 @@
 import React, { useMemo, useState } from "react";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
 import {
-  ThemeProvider,
-  createTheme,
-} from "@mui/material/styles";
-import {
+  CssBaseline,
   AppBar,
   Toolbar,
   Typography,
   Container,
-  CssBaseline,
   Box,
   Card,
   CardContent,
@@ -17,6 +14,7 @@ import {
   Stack,
   Chip,
   Alert,
+  Snackbar,
   TableContainer,
   Table,
   TableHead,
@@ -27,6 +25,9 @@ import {
   Divider,
   IconButton,
 } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AutoStoriesOutlinedIcon from "@mui/icons-material/AutoStoriesOutlined";
@@ -129,14 +130,24 @@ function parseDate(iso) {
   return new Date(iso + "T00:00:00");
 }
 
+function formatLocalDate(date) {
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function eachDateInclusive(startISO, endISO) {
   const out = [];
   let d = parseDate(startISO);
   const end = parseDate(endISO);
+
   while (d <= end) {
     out.push(toISODate(d));
     d.setDate(d.getDate() + 1);
   }
+
   return out;
 }
 
@@ -160,7 +171,7 @@ function getWorkingDays(startISO, endISO) {
   return eachDateInclusive(startISO, endISO).filter((d) => !isWeekend(d));
 }
 
-// 8h/day, 1 SP = 8h => SP equals effective person-days under this model
+// 8h/day and 1 SP = 8h under this planning model
 function calcMemberCapacityForSprint(member, sprint, holidayMap) {
   const sprintWorking = getWorkingDays(sprint.startDate, sprint.endDate);
   const sprintSet = new Set(sprintWorking);
@@ -180,6 +191,7 @@ function calcMemberCapacityForSprint(member, sprint, holidayMap) {
     if (!ov) continue;
     ptoDays = ptoDays.concat(getWorkingDays(ov.start, ov.end));
   }
+
   ptoDays = unique(ptoDays);
 
   const holidaySet = new Set(locHolidays);
@@ -191,8 +203,7 @@ function calcMemberCapacityForSprint(member, sprint, holidayMap) {
   );
 
   const allocationFactor = (Number(member.allocation) || 0) / 100;
-  const capacityDays = availableDays * allocationFactor;
-  const capacityHours = capacityDays * 8;
+  const capacityHours = availableDays * allocationFactor * 8;
   const capacityStoryPoints = capacityHours / 8;
 
   return {
@@ -201,7 +212,6 @@ function calcMemberCapacityForSprint(member, sprint, holidayMap) {
     ptoDays: effectivePto.length,
     availableDays,
     allocation: Number(member.allocation) || 0,
-    capacityDays: Number(capacityDays.toFixed(2)),
     capacityHours: Number(capacityHours.toFixed(2)),
     capacityStoryPoints: Number(capacityStoryPoints.toFixed(2)),
   };
@@ -224,7 +234,7 @@ function normalizeSprintNames(sprints, piName) {
   }));
 }
 
-/* ---------------------- Small Presentational Component ---------------------- */
+/* ---------------------- Small Presentational Components ---------------------- */
 
 function StatCard({ icon, label, value, color = "primary.main" }) {
   return (
@@ -271,6 +281,54 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
+function PlannerDateField({
+  label,
+  value,
+  onChange,
+  required = false,
+  emptyHelperText = "Select a date",
+  minDate,
+  maxDate,
+}) {
+  const isEmpty = !value;
+
+  return (
+    <DatePicker
+      label={label}
+      format="yyyy-MM-dd"
+      value={value ? parseDate(value) : null}
+      onChange={(newValue) => {
+        if (!newValue || Number.isNaN(newValue.getTime())) {
+          onChange("");
+          return;
+        }
+        onChange(formatLocalDate(newValue));
+      }}
+      minDate={minDate ? parseDate(minDate) : undefined}
+      maxDate={maxDate ? parseDate(maxDate) : undefined}
+      slotProps={{
+        textField: {
+          required,
+          fullWidth: true,
+          size: "small",
+          helperText: isEmpty ? emptyHelperText : "Format: YYYY-MM-DD",
+          sx: isEmpty
+            ? {
+                "& .MuiOutlinedInput-root": {
+                  backgroundColor: "#FFF8E1",
+                },
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderStyle: "dashed",
+                  borderColor: "#B65C02",
+                },
+              }
+            : undefined,
+        },
+      }}
+    />
+  );
+}
+
 /* ---------------------- Main App ---------------------- */
 
 export default function App() {
@@ -296,6 +354,25 @@ export default function App() {
 
   const [ptoForm, setPtoForm] = useState({ fromDate: "", toDate: "" });
 
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "info",
+  });
+
+  const showToast = (message, severity = "info") => {
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  const handleCloseSnackbar = (_, reason) => {
+    if (reason === "clickaway") return;
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
   /* -------- PI -------- */
 
   const onPiChange = (e) => {
@@ -312,18 +389,14 @@ export default function App() {
 
   /* -------- Sprints -------- */
 
-  const onSprintChange = (e) => {
-    const { name, value } = e.target;
-    setSprintForm((s) => ({ ...s, [name]: value }));
-  };
-
   const addSprint = () => {
     if (!sprintForm.startDate || !sprintForm.endDate) {
-      alert("Please fill sprint start/end.");
+      showToast("Please select both sprint start and end dates.", "warning");
       return;
     }
+
     if (sprintForm.startDate > sprintForm.endDate) {
-      alert("Sprint start date must be <= end date.");
+      showToast("Sprint start date must be before or equal to the end date.", "error");
       return;
     }
 
@@ -338,11 +411,15 @@ export default function App() {
 
     setSprints(normalizeSprintNames(next, pi.name));
     setSprintForm({ startDate: "", endDate: "" });
+    showToast("Sprint added successfully.", "success");
   };
 
   const removeSprint = (id) => {
-    const next = sprints.filter((s) => s.id !== id);
-    setSprints(normalizeSprintNames(next, pi.name));
+    setSprints((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      return normalizeSprintNames(next, pi.name);
+    });
+    showToast("Sprint removed.", "info");
   };
 
   /* -------- Members / PTO -------- */
@@ -355,28 +432,32 @@ export default function App() {
     }));
   };
 
-  const onPtoChange = (e) => {
-    const { name, value } = e.target;
-    setPtoForm((p) => ({ ...p, [name]: value }));
-  };
-
   const addPtoToMemberDraft = () => {
     if (!ptoForm.fromDate) {
-      alert("PTO from date is required.");
+      showToast("PTO start date is required.", "warning");
       return;
     }
 
     const toDate = ptoForm.toDate || ptoForm.fromDate;
     if (ptoForm.fromDate > toDate) {
-      alert("PTO from date must be <= to date.");
+      showToast("PTO start date must be before or equal to the end date.", "error");
       return;
     }
 
     setMemberForm((m) => ({
       ...m,
-      pto: [...m.pto, { id: crypto.randomUUID(), fromDate: ptoForm.fromDate, toDate }],
+      pto: [
+        ...m.pto,
+        {
+          id: crypto.randomUUID(),
+          fromDate: ptoForm.fromDate,
+          toDate,
+        },
+      ],
     }));
+
     setPtoForm({ fromDate: "", toDate: "" });
+    showToast("PTO added to draft member.", "success");
   };
 
   const removeDraftPto = (id) => {
@@ -384,16 +465,17 @@ export default function App() {
       ...m,
       pto: m.pto.filter((p) => p.id !== id),
     }));
+    showToast("Draft PTO entry removed.", "info");
   };
 
   const addMember = () => {
     if (!memberForm.name || !memberForm.location) {
-      alert("Member name and location are required.");
+      showToast("Member name and location are required.", "warning");
       return;
     }
 
     if (memberForm.allocation < 0 || memberForm.allocation > 100) {
-      alert("Allocation must be between 0 and 100.");
+      showToast("Allocation must be between 0 and 100.", "error");
       return;
     }
 
@@ -405,10 +487,12 @@ export default function App() {
       pto: [],
     });
     setPtoForm({ fromDate: "", toDate: "" });
+    showToast("Member added successfully.", "success");
   };
 
   const removeMember = (id) => {
     setMembers((prev) => prev.filter((m) => m.id !== id));
+    showToast("Member removed.", "info");
   };
 
   /* -------- Validation -------- */
@@ -461,12 +545,10 @@ export default function App() {
         ...calcMemberCapacityForSprint(m, s, holidaysData),
       }));
 
-      const totalCapacityDays = Number(
-        memberRows.reduce((acc, r) => acc + r.capacityDays, 0).toFixed(2)
-      );
       const totalCapacityHours = Number(
         memberRows.reduce((acc, r) => acc + r.capacityHours, 0).toFixed(2)
       );
+
       const totalCapacityStoryPoints = Number(
         memberRows.reduce((acc, r) => acc + r.capacityStoryPoints, 0).toFixed(2)
       );
@@ -474,7 +556,6 @@ export default function App() {
       return {
         sprint: s,
         memberRows,
-        totalCapacityDays,
         totalCapacityHours,
         totalCapacityStoryPoints,
       };
@@ -482,18 +563,15 @@ export default function App() {
   }, [sprints, members]);
 
   const piTotals = useMemo(() => {
-    const totalDays = Number(
-      results.reduce((acc, s) => acc + s.totalCapacityDays, 0).toFixed(2)
-    );
     const totalHours = Number(
       results.reduce((acc, s) => acc + s.totalCapacityHours, 0).toFixed(2)
     );
+
     const totalStoryPoints = Number(
       results.reduce((acc, s) => acc + s.totalCapacityStoryPoints, 0).toFixed(2)
     );
 
     return {
-      totalDays,
       totalHours,
       totalStoryPoints,
     };
@@ -512,6 +590,7 @@ export default function App() {
     a.download = "pi-plan.json";
     a.click();
     URL.revokeObjectURL(url);
+    showToast("Plan exported successfully.", "success");
   };
 
   const importPlan = (event) => {
@@ -535,11 +614,15 @@ export default function App() {
         setPi(importedPi);
         setSprints(normalizedSprints);
         setMembers(data.members);
+        showToast("Plan imported successfully.", "success");
       } catch (e) {
-        alert("Import failed: " + e.message);
+        showToast(`Import failed: ${e.message}`, "error");
       }
     };
     reader.readAsText(file);
+
+    // Allows re-importing the same file without needing to pick a different one first
+    event.target.value = "";
   };
 
   /* -------- Derived UI values -------- */
@@ -549,521 +632,601 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <CssBaseline />
 
-      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-        <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: "1px solid #E5E7EB" }}>
-          <Toolbar sx={{ gap: 2, flexWrap: "wrap" }}>
-            <Typography variant="h6" sx={{ flexGrow: 1 }}>
-              PI Capacity Planner
-            </Typography>
-
-            <Chip
-              color="primary"
-              variant="outlined"
-              label={pi.name || "Unnamed PI"}
-            />
-            <Chip
-              variant="outlined"
-              icon={<EventOutlinedIcon />}
-              label={piDateLabel}
-            />
-            <Chip
-              color="success"
-              label={`${piTotals.totalStoryPoints} SP`}
-            />
-          </Toolbar>
-        </AppBar>
-
-        <Container maxWidth="xl" sx={{ py: 4 }}>
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: "380px 1fr" },
-              gap: 3,
-              alignItems: "start",
-            }}
+        <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+          <AppBar
+            position="sticky"
+            color="inherit"
+            elevation={0}
+            sx={{ borderBottom: "1px solid #E5E7EB" }}
           >
-            {/* LEFT COLUMN */}
-            <Stack spacing={3}>
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Program Increment"
-                    subtitle="Define the PI name and date range."
-                  />
-                  <Stack spacing={2}>
-                    <TextField
-                      label="PI Name"
-                      name="name"
-                      value={pi.name}
-                      onChange={onPiChange}
+            <Toolbar sx={{ gap: 2, flexWrap: "wrap" }}>
+              <Typography variant="h6" sx={{ flexGrow: 1 }}>
+                PI Capacity Planner
+              </Typography>
+
+              <Chip
+                color="primary"
+                variant="outlined"
+                label={pi.name || "Unnamed PI"}
+              />
+              <Chip
+                variant="outlined"
+                icon={<EventOutlinedIcon />}
+                label={piDateLabel}
+              />
+              <Chip color="success" label={`${piTotals.totalStoryPoints} SP`} />
+            </Toolbar>
+          </AppBar>
+
+          <Container maxWidth="xl" sx={{ py: 4 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", lg: "380px 1fr" },
+                gap: 3,
+                alignItems: "start",
+              }}
+            >
+              {/* LEFT COLUMN */}
+              <Stack spacing={3}>
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Program Increment"
+                      subtitle="Define the PI name and date range. Required date fields stay highlighted until selected."
                     />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                    <Stack spacing={2}>
                       <TextField
-                        label="Start Date"
-                        type="date"
-                        name="startDate"
-                        value={pi.startDate}
+                        label="PI Name"
+                        name="name"
+                        value={pi.name}
                         onChange={onPiChange}
-                        InputLabelProps={{ shrink: true }}
                       />
-                      <TextField
-                        label="End Date"
-                        type="date"
-                        name="endDate"
-                        value={pi.endDate}
-                        onChange={onPiChange}
-                        InputLabelProps={{ shrink: true }}
-                      />
+
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <PlannerDateField
+                          label="Start Date"
+                          required
+                          value={pi.startDate}
+                          onChange={(value) =>
+                            setPi((prev) => ({
+                              ...prev,
+                              startDate: value,
+                            }))
+                          }
+                          maxDate={pi.endDate || undefined}
+                          emptyHelperText="Select the PI start date"
+                        />
+
+                        <PlannerDateField
+                          label="End Date"
+                          required
+                          value={pi.endDate}
+                          onChange={(value) =>
+                            setPi((prev) => ({
+                              ...prev,
+                              endDate: value,
+                            }))
+                          }
+                          minDate={pi.startDate || undefined}
+                          emptyHelperText="Select the PI end date"
+                        />
+                      </Stack>
                     </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
 
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Sprints"
-                    subtitle="Add sprint date ranges. Names are generated automatically from the PI name and sorted by date."
-                  />
-                  <Stack spacing={2}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <TextField
-                        label="Start Date"
-                        type="date"
-                        name="startDate"
-                        value={sprintForm.startDate}
-                        onChange={onSprintChange}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        label="End Date"
-                        type="date"
-                        name="endDate"
-                        value={sprintForm.endDate}
-                        onChange={onSprintChange}
-                        InputLabelProps={{ shrink: true }}
-                      />
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Sprints"
+                      subtitle="Add sprint date ranges. Names are generated automatically from the PI name and sorted by date."
+                    />
+                    <Stack spacing={2}>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <PlannerDateField
+                          label="Start Date"
+                          required
+                          value={sprintForm.startDate}
+                          onChange={(value) =>
+                            setSprintForm((prev) => ({
+                              ...prev,
+                              startDate: value,
+                            }))
+                          }
+                          minDate={pi.startDate || undefined}
+                          maxDate={sprintForm.endDate || pi.endDate || undefined}
+                          emptyHelperText="Select sprint start date"
+                        />
+
+                        <PlannerDateField
+                          label="End Date"
+                          required
+                          value={sprintForm.endDate}
+                          onChange={(value) =>
+                            setSprintForm((prev) => ({
+                              ...prev,
+                              endDate: value,
+                            }))
+                          }
+                          minDate={sprintForm.startDate || pi.startDate || undefined}
+                          maxDate={pi.endDate || undefined}
+                          emptyHelperText="Select sprint end date"
+                        />
+                      </Stack>
+
+                      <Button
+                        variant="contained"
+                        startIcon={<AddOutlinedIcon />}
+                        onClick={addSprint}
+                      >
+                        Add Sprint
+                      </Button>
+
+                      <Divider />
+
+                      <Stack spacing={1.25}>
+                        {sprints.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No sprints added yet.
+                          </Typography>
+                        ) : (
+                          sprints.map((s) => (
+                            <Paper
+                              key={s.id}
+                              variant="outlined"
+                              sx={{
+                                p: 1.5,
+                                borderRadius: 2,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 1,
+                              }}
+                            >
+                              <Box>
+                                <Typography variant="subtitle2">{s.name}</Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {s.startDate} → {s.endDate}
+                                </Typography>
+                              </Box>
+                              <IconButton color="error" onClick={() => removeSprint(s.id)}>
+                                <DeleteOutlineIcon />
+                              </IconButton>
+                            </Paper>
+                          ))
+                        )}
+                      </Stack>
                     </Stack>
+                  </CardContent>
+                </Card>
 
-                    <Button
-                      variant="contained"
-                      startIcon={<AddOutlinedIcon />}
-                      onClick={addSprint}
-                    >
-                      Add Sprint
-                    </Button>
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Team Members"
+                      subtitle="Create a member, assign a location, allocation, and PTO."
+                    />
 
-                    <Divider />
+                    <Stack spacing={2}>
+                      <TextField
+                        label="Name"
+                        name="name"
+                        value={memberForm.name}
+                        onChange={onMemberChange}
+                      />
 
-                    <Stack spacing={1.25}>
-                      {sprints.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          No sprints added yet.
-                        </Typography>
-                      ) : (
-                        sprints.map((s) => (
+                      <TextField
+                        label="Location"
+                        name="location"
+                        value={memberForm.location}
+                        onChange={onMemberChange}
+                        placeholder="London"
+                        select={false}
+                        inputProps={{ list: "locations" }}
+                      />
+                      <datalist id="locations">
+                        {Object.keys(holidaysData).map((loc) => (
+                          <option key={loc} value={loc} />
+                        ))}
+                      </datalist>
+
+                      <TextField
+                        label="Allocation %"
+                        type="number"
+                        inputProps={{ min: 0, max: 100 }}
+                        name="allocation"
+                        value={memberForm.allocation}
+                        onChange={onMemberChange}
+                      />
+
+                      <Divider />
+
+                      <Typography variant="subtitle1">Draft PTO</Typography>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                        <PlannerDateField
+                          label="From"
+                          required
+                          value={ptoForm.fromDate}
+                          onChange={(value) =>
+                            setPtoForm((prev) => ({
+                              ...prev,
+                              fromDate: value,
+                            }))
+                          }
+                          maxDate={ptoForm.toDate || undefined}
+                          emptyHelperText="Select PTO start date"
+                        />
+
+                        <PlannerDateField
+                          label="To"
+                          value={ptoForm.toDate}
+                          onChange={(value) =>
+                            setPtoForm((prev) => ({
+                              ...prev,
+                              toDate: value,
+                            }))
+                          }
+                          minDate={ptoForm.fromDate || undefined}
+                          emptyHelperText="Optional — defaults to the same day"
+                        />
+                      </Stack>
+
+                      <Button variant="outlined" onClick={addPtoToMemberDraft}>
+                        Add PTO to Draft Member
+                      </Button>
+
+                      <Stack spacing={1}>
+                        {memberForm.pto.map((p) => (
                           <Paper
-                            key={s.id}
+                            key={p.id}
                             variant="outlined"
                             sx={{
-                              p: 1.5,
+                              p: 1.25,
                               borderRadius: 2,
                               display: "flex",
-                              alignItems: "center",
                               justifyContent: "space-between",
-                              gap: 1,
+                              alignItems: "center",
                             }}
                           >
-                            <Box>
-                              <Typography variant="subtitle2">{s.name}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {s.startDate} → {s.endDate}
-                              </Typography>
-                            </Box>
-                            <IconButton color="error" onClick={() => removeSprint(s.id)}>
+                            <Typography variant="body2">
+                              PTO: {p.fromDate} → {p.toDate}
+                            </Typography>
+                            <IconButton color="error" onClick={() => removeDraftPto(p.id)}>
                               <DeleteOutlineIcon />
                             </IconButton>
                           </Paper>
-                        ))
-                      )}
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
+                        ))}
+                      </Stack>
 
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Team Members"
-                    subtitle="Create a member, assign a location, allocation, and PTO."
-                  />
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={addMember}
+                        startIcon={<AddOutlinedIcon />}
+                      >
+                        Add Member
+                      </Button>
 
-                  <Stack spacing={2}>
-                    <TextField
-                      label="Name"
-                      name="name"
-                      value={memberForm.name}
-                      onChange={onMemberChange}
-                    />
+                      <Divider />
 
-                    <TextField
-                      label="Location"
-                      name="location"
-                      value={memberForm.location}
-                      onChange={onMemberChange}
-                      placeholder="London"
-                      select={false}
-                      inputProps={{ list: "locations" }}
-                    />
-                    <datalist id="locations">
-                      {Object.keys(holidaysData).map((loc) => (
-                        <option key={loc} value={loc} />
-                      ))}
-                    </datalist>
-
-                    <TextField
-                      label="Allocation %"
-                      type="number"
-                      inputProps={{ min: 0, max: 100 }}
-                      name="allocation"
-                      value={memberForm.allocation}
-                      onChange={onMemberChange}
-                    />
-
-                    <Divider />
-
-                    <Typography variant="subtitle1">Draft PTO</Typography>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <TextField
-                        label="From"
-                        type="date"
-                        name="fromDate"
-                        value={ptoForm.fromDate}
-                        onChange={onPtoChange}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                      <TextField
-                        label="To"
-                        type="date"
-                        name="toDate"
-                        value={ptoForm.toDate}
-                        onChange={onPtoChange}
-                        InputLabelProps={{ shrink: true }}
-                      />
-                    </Stack>
-
-                    <Button variant="outlined" onClick={addPtoToMemberDraft}>
-                      Add PTO to Draft Member
-                    </Button>
-
-                    <Stack spacing={1}>
-                      {memberForm.pto.map((p) => (
-                        <Paper
-                          key={p.id}
-                          variant="outlined"
-                          sx={{
-                            p: 1.25,
-                            borderRadius: 2,
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography variant="body2">
-                            PTO: {p.fromDate} → {p.toDate}
+                      <Typography variant="subtitle1">Current Members</Typography>
+                      <Stack spacing={1.25}>
+                        {members.length === 0 ? (
+                          <Typography variant="body2" color="text.secondary">
+                            No members added yet.
                           </Typography>
-                          <IconButton color="error" onClick={() => removeDraftPto(p.id)}>
-                            <DeleteOutlineIcon />
-                          </IconButton>
-                        </Paper>
-                      ))}
-                    </Stack>
-
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={addMember}
-                      startIcon={<AddOutlinedIcon />}
-                    >
-                      Add Member
-                    </Button>
-
-                    <Divider />
-
-                    <Typography variant="subtitle1">Current Members</Typography>
-                    <Stack spacing={1.25}>
-                      {members.length === 0 ? (
-                        <Typography variant="body2" color="text.secondary">
-                          No members added yet.
-                        </Typography>
-                      ) : (
-                        members.map((m) => (
-                          <Paper
-                            key={m.id}
-                            variant="outlined"
-                            sx={{ p: 1.5, borderRadius: 2 }}
-                          >
-                            <Stack
-                              direction={{ xs: "column", sm: "row" }}
-                              spacing={1}
-                              justifyContent="space-between"
-                              alignItems={{ xs: "flex-start", sm: "center" }}
+                        ) : (
+                          members.map((m) => (
+                            <Paper
+                              key={m.id}
+                              variant="outlined"
+                              sx={{ p: 1.5, borderRadius: 2 }}
                             >
-                              <Box>
-                                <Typography variant="subtitle2">{m.name}</Typography>
-                                <Stack direction="row" spacing={1} sx={{ mt: 0.75, flexWrap: "wrap" }}>
-                                  <Chip size="small" label={m.location} />
-                                  <Chip size="small" variant="outlined" label={`${m.allocation}% allocation`} />
-                                  <Chip size="small" variant="outlined" label={`${m.pto.length} PTO entries`} />
-                                </Stack>
-                              </Box>
-                              <IconButton color="error" onClick={() => removeMember(m.id)}>
-                                <DeleteOutlineIcon />
-                              </IconButton>
-                            </Stack>
-                          </Paper>
+                              <Stack
+                                direction={{ xs: "column", sm: "row" }}
+                                spacing={1}
+                                justifyContent="space-between"
+                                alignItems={{ xs: "flex-start", sm: "center" }}
+                              >
+                                <Box>
+                                  <Typography variant="subtitle2">{m.name}</Typography>
+                                  <Stack
+                                    direction="row"
+                                    spacing={1}
+                                    sx={{ mt: 0.75, flexWrap: "wrap" }}
+                                  >
+                                    <Chip size="small" label={m.location} />
+                                    <Chip
+                                      size="small"
+                                      variant="outlined"
+                                      label={`${m.allocation}% allocation`}
+                                    />
+                                    <Chip
+                                      size="small"
+                                      variant="outlined"
+                                      label={`${m.pto.length} PTO entries`}
+                                    />
+                                  </Stack>
+                                </Box>
+                                <IconButton color="error" onClick={() => removeMember(m.id)}>
+                                  <DeleteOutlineIcon />
+                                </IconButton>
+                              </Stack>
+                            </Paper>
+                          ))
+                        )}
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Stack>
+
+              {/* RIGHT COLUMN */}
+              <Stack spacing={3}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      xl: "repeat(4, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                  }}
+                >
+                  <StatCard
+                    icon={<AutoStoriesOutlinedIcon />}
+                    label="PI Story Points"
+                    value={piTotals.totalStoryPoints}
+                    color="success.main"
+                  />
+                  <StatCard
+                    icon={<ScheduleOutlinedIcon />}
+                    label="PI Hours"
+                    value={piTotals.totalHours}
+                    color="primary.main"
+                  />
+                  <StatCard
+                    icon={<GroupOutlinedIcon />}
+                    label="Team Members"
+                    value={members.length}
+                    color="secondary.main"
+                  />
+                  <StatCard
+                    icon={<EventOutlinedIcon />}
+                    label="Sprints"
+                    value={sprints.length}
+                    color="warning.main"
+                  />
+                </Box>
+
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Validation"
+                      subtitle="Warnings and data quality checks before trusting the capacity output."
+                    />
+                    <Stack spacing={1.25}>
+                      {validationIssues.length === 0 ? (
+                        <Alert severity="success">No validation issues found.</Alert>
+                      ) : (
+                        validationIssues.map((issue, idx) => (
+                          <Alert key={idx} severity="warning">
+                            {issue}
+                          </Alert>
                         ))
                       )}
                     </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Stack>
+                  </CardContent>
+                </Card>
 
-            {/* RIGHT COLUMN */}
-            <Stack spacing={3}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    xl: "repeat(4, minmax(0, 1fr))",
-                  },
-                  gap: 2,
-                }}
-              >
-                <StatCard
-                  icon={<AutoStoriesOutlinedIcon />}
-                  label="PI Story Points"
-                  value={piTotals.totalStoryPoints}
-                  color="success.main"
-                />
-                <StatCard
-                  icon={<ScheduleOutlinedIcon />}
-                  label="PI Hours"
-                  value={piTotals.totalHours}
-                  color="primary.main"
-                />
-                <StatCard
-                  icon={<GroupOutlinedIcon />}
-                  label="Team Members"
-                  value={members.length}
-                  color="secondary.main"
-                />
-                <StatCard
-                  icon={<EventOutlinedIcon />}
-                  label="Sprints"
-                  value={sprints.length}
-                  color="warning.main"
-                />
-              </Box>
-
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Validation"
-                    subtitle="Warnings and data quality checks before trusting the capacity output."
-                  />
-                  <Stack spacing={1.25}>
-                    {validationIssues.length === 0 ? (
-                      <Alert severity="success">No validation issues found.</Alert>
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="PI Total Capacity / Velocity"
+                      subtitle="Aggregate capacity across all configured sprints."
+                    />
+                    {sprints.length === 0 || members.length === 0 ? (
+                      <Alert severity="info">
+                        Add at least one sprint and one member to compute PI totals.
+                      </Alert>
                     ) : (
-                      validationIssues.map((issue, idx) => (
-                        <Alert key={idx} severity="warning">
-                          {issue}
-                        </Alert>
-                      ))
-                    )}
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="PI Total Capacity / Velocity"
-                    subtitle="Aggregate capacity across all configured sprints."
-                  />
-                  {sprints.length === 0 || members.length === 0 ? (
-                    <Alert severity="info">
-                      Add at least one sprint and one member to compute PI totals.
-                    </Alert>
-                  ) : (
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} flexWrap="wrap">
-                      <Chip color="primary" label={`${piTotals.totalDays} days`} />
-                      <Chip color="primary" variant="outlined" label={`${piTotals.totalHours} hours`} />
-                      <Chip color="success" label={`${piTotals.totalStoryPoints} story points`} />
-                    </Stack>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Sprint Capacity Results"
-                    subtitle="Per-member capacity by sprint in days, hours, and story points."
-                  />
-
-                  {sprints.length === 0 || members.length === 0 ? (
-                    <Alert severity="info">
-                      Add at least one sprint and one member.
-                    </Alert>
-                  ) : (
-                    <Stack spacing={3}>
-                      {results.map((r) => (
-                        <Paper
-                          key={r.sprint.id}
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1.5}
+                        flexWrap="wrap"
+                      >
+                        <Chip
+                          color="primary"
                           variant="outlined"
-                          sx={{ borderRadius: 3, overflow: "hidden" }}
-                        >
-                          <Box
-                            sx={{
-                              px: 2,
-                              py: 1.5,
-                              bgcolor: "#F8FAFC",
-                              borderBottom: "1px solid #E5E7EB",
-                            }}
-                          >
-                            <Stack
-                              direction={{ xs: "column", md: "row" }}
-                              spacing={1}
-                              justifyContent="space-between"
-                              alignItems={{ xs: "flex-start", md: "center" }}
-                            >
-                              <Box>
-                                <Typography variant="subtitle1">{r.sprint.name}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {r.sprint.startDate} → {r.sprint.endDate}
-                                </Typography>
-                              </Box>
-                              <Stack direction="row" spacing={1} flexWrap="wrap">
-                                <Chip size="small" label={`${r.totalCapacityDays} days`} />
-                                <Chip size="small" label={`${r.totalCapacityHours} hours`} />
-                                <Chip size="small" color="success" label={`${r.totalCapacityStoryPoints} SP`} />
-                              </Stack>
-                            </Stack>
-                          </Box>
+                          label={`${piTotals.totalHours} hours`}
+                        />
+                        <Chip
+                          color="success"
+                          label={`${piTotals.totalStoryPoints} story points`}
+                        />
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
 
-                          <TableContainer>
-                            <Table size="small">
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell>Member</TableCell>
-                                  <TableCell align="right">Working Days</TableCell>
-                                  <TableCell align="right">Holidays</TableCell>
-                                  <TableCell align="right">PTO</TableCell>
-                                  <TableCell align="right">Available</TableCell>
-                                  <TableCell align="right">Allocation %</TableCell>
-                                  <TableCell align="right">Capacity Days</TableCell>
-                                  <TableCell align="right">Capacity Hours</TableCell>
-                                  <TableCell align="right">Story Points</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {r.memberRows.map((row) => (
-                                  <TableRow key={row.member.id} hover>
-                                    <TableCell>
-                                      <Stack spacing={0.5}>
-                                        <Typography variant="body2" fontWeight={600}>
-                                          {row.member.name}
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Sprint Capacity Results"
+                      subtitle="Per-member capacity by sprint in hours and story points."
+                    />
+
+                    {sprints.length === 0 || members.length === 0 ? (
+                      <Alert severity="info">
+                        Add at least one sprint and one member.
+                      </Alert>
+                    ) : (
+                      <Stack spacing={3}>
+                        {results.map((r) => (
+                          <Paper
+                            key={r.sprint.id}
+                            variant="outlined"
+                            sx={{ borderRadius: 3, overflow: "hidden" }}
+                          >
+                            <Box
+                              sx={{
+                                px: 2,
+                                py: 1.5,
+                                bgcolor: "#F8FAFC",
+                                borderBottom: "1px solid #E5E7EB",
+                              }}
+                            >
+                              <Stack
+                                direction={{ xs: "column", md: "row" }}
+                                spacing={1}
+                                justifyContent="space-between"
+                                alignItems={{ xs: "flex-start", md: "center" }}
+                              >
+                                <Box>
+                                  <Typography variant="subtitle1">{r.sprint.name}</Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    {r.sprint.startDate} → {r.sprint.endDate}
+                                  </Typography>
+                                </Box>
+                                <Stack direction="row" spacing={1} flexWrap="wrap">
+                                  <Chip size="small" label={`${r.totalCapacityHours} hours`} />
+                                  <Chip
+                                    size="small"
+                                    color="success"
+                                    label={`${r.totalCapacityStoryPoints} SP`}
+                                  />
+                                </Stack>
+                              </Stack>
+                            </Box>
+
+                            <TableContainer>
+                              <Table size="small">
+                                <TableHead>
+                                  <TableRow>
+                                    <TableCell>Member</TableCell>
+                                    <TableCell align="right">Working Days</TableCell>
+                                    <TableCell align="right">Holidays</TableCell>
+                                    <TableCell align="right">PTO</TableCell>
+                                    <TableCell align="right">Available</TableCell>
+                                    <TableCell align="right">Allocation %</TableCell>
+                                    <TableCell align="right">Capacity Hours</TableCell>
+                                    <TableCell align="right">Story Points</TableCell>
+                                  </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                  {r.memberRows.map((row) => (
+                                    <TableRow key={row.member.id} hover>
+                                      <TableCell>
+                                        <Stack spacing={0.5}>
+                                          <Typography variant="body2" fontWeight={600}>
+                                            {row.member.name}
+                                          </Typography>
+                                          <Typography variant="caption" color="text.secondary">
+                                            {row.member.location}
+                                          </Typography>
+                                        </Stack>
+                                      </TableCell>
+                                      <TableCell align="right">{row.workingDays}</TableCell>
+                                      <TableCell align="right">{row.holidays}</TableCell>
+                                      <TableCell align="right">{row.ptoDays}</TableCell>
+                                      <TableCell align="right">{row.availableDays}</TableCell>
+                                      <TableCell align="right">{row.allocation}</TableCell>
+                                      <TableCell align="right">{row.capacityHours}</TableCell>
+                                      <TableCell align="right">
+                                        <Typography fontWeight={700}>
+                                          {row.capacityStoryPoints}
                                         </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                          {row.member.location}
-                                        </Typography>
-                                      </Stack>
-                                    </TableCell>
-                                    <TableCell align="right">{row.workingDays}</TableCell>
-                                    <TableCell align="right">{row.holidays}</TableCell>
-                                    <TableCell align="right">{row.ptoDays}</TableCell>
-                                    <TableCell align="right">{row.availableDays}</TableCell>
-                                    <TableCell align="right">{row.allocation}</TableCell>
-                                    <TableCell align="right">{row.capacityDays}</TableCell>
-                                    <TableCell align="right">{row.capacityHours}</TableCell>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+
+                                  <TableRow
+                                    sx={{
+                                      "& td": {
+                                        fontWeight: 700,
+                                        backgroundColor: "#FCFCFD",
+                                      },
+                                    }}
+                                  >
+                                    <TableCell>Total</TableCell>
+                                    <TableCell />
+                                    <TableCell />
+                                    <TableCell />
+                                    <TableCell />
+                                    <TableCell />
+                                    <TableCell align="right">{r.totalCapacityHours}</TableCell>
                                     <TableCell align="right">
-                                      <Typography fontWeight={700}>
-                                        {row.capacityStoryPoints}
-                                      </Typography>
+                                      {r.totalCapacityStoryPoints}
                                     </TableCell>
                                   </TableRow>
-                                ))}
-                                <TableRow
-                                  sx={{
-                                    "& td": {
-                                      fontWeight: 700,
-                                      backgroundColor: "#FCFCFD",
-                                    },
-                                  }}
-                                >
-                                  <TableCell>Total</TableCell>
-                                  <TableCell />
-                                  <TableCell />
-                                  <TableCell />
-                                  <TableCell />
-                                  <TableCell />
-                                  <TableCell align="right">{r.totalCapacityDays}</TableCell>
-                                  <TableCell align="right">{r.totalCapacityHours}</TableCell>
-                                  <TableCell align="right">{r.totalCapacityStoryPoints}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </TableContainer>
-                        </Paper>
-                      ))}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent>
+                    <SectionHeader
+                      title="Import / Export"
+                      subtitle="Save the current plan locally or load an existing JSON file."
+                    />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<DownloadOutlinedIcon />}
+                        onClick={exportPlan}
+                      >
+                        Export Plan JSON
+                      </Button>
+
+                      <Button
+                        component="label"
+                        variant="outlined"
+                        startIcon={<UploadFileOutlinedIcon />}
+                      >
+                        Import Plan JSON
+                        <input
+                          hidden
+                          type="file"
+                          accept="application/json"
+                          onChange={importPlan}
+                        />
+                      </Button>
                     </Stack>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Stack>
+            </Box>
+          </Container>
 
-              <Card>
-                <CardContent>
-                  <SectionHeader
-                    title="Import / Export"
-                    subtitle="Save the current plan locally or load an existing JSON file."
-                  />
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      startIcon={<DownloadOutlinedIcon />}
-                      onClick={exportPlan}
-                    >
-                      Export Plan JSON
-                    </Button>
-
-                    <Button
-                      component="label"
-                      variant="outlined"
-                      startIcon={<UploadFileOutlinedIcon />}
-                    >
-                      Import Plan JSON
-                      <input
-                        hidden
-                        type="file"
-                        accept="application/json"
-                        onChange={importPlan}
-                      />
-                    </Button>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Stack>
-          </Box>
-        </Container>
-      </Box>
+          <Snackbar
+            open={snackbar.open}
+            autoHideDuration={3500}
+            onClose={handleCloseSnackbar}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          >
+            <Alert
+              onClose={handleCloseSnackbar}
+              severity={snackbar.severity}
+              variant="filled"
+              sx={{ width: "100%" }}
+            >
+              {snackbar.message}
+            </Alert>
+          </Snackbar>
+        </Box>
+      </LocalizationProvider>
     </ThemeProvider>
   );
 }
