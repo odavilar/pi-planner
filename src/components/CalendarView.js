@@ -41,6 +41,19 @@ function shadeHex(hex, alpha = 0.5) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function formatHuman(iso) {
+  try {
+    return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch (_) {
+    return iso;
+  }
+}
+
 export default function CalendarView({ pi, sprints = [], members = [], holidaysData = {} }) {
   const dates = useMemo(() => {
     if (!pi?.startDate || !pi?.endDate) return [];
@@ -85,6 +98,20 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
     return out;
   }, [dates]);
 
+  // stable colors for sprints and members
+  const sprintColorMap = useMemo(() => {
+    const map = new Map();
+    sprints.forEach((s) => {
+      const base = colorForString(s.name || `${s.startDate}-${s.endDate}`);
+      map.set(s, {
+        base,
+        bg: shadeHex(base, 0.18),
+        border: base,
+      });
+    });
+    return map;
+  }, [sprints]);
+
   if (!dates.length) {
     return (
       <div>
@@ -105,55 +132,79 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
         </div>
       </div>
 
-      <div style={{ display: 'grid', gap: 20 }}>
-        {months.map((month) => (
-          <div key={`${month.year}-${month.month}`}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontWeight: 700 }}>{month.label}</div>
-            </div>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' } }}>
+            {months.map((month) => (
+              <Box key={`${month.year}-${month.month}`} sx={{ border: '1px solid #eef2ff', borderRadius: 1, overflow: 'hidden', bgcolor: 'background.paper' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.25, borderBottom: '1px solid #eef2ff' }}>
+                  <Box sx={{ fontWeight: 700 }}>{month.label}</Box>
+                </Box>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, border: '1px solid #eef2ff', borderRadius: 8, overflow: 'hidden' }}>
-              {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
-                <div key={d} style={{ padding: 8, background: '#f8fafc', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>{d}</div>
-              ))}
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, p: 1 }}>
+                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+                    <Box key={d} sx={{ p: 0.75, background: '#f8fafc', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>{d}</Box>
+                  ))}
 
-              {month.weeks.flat().map((iso, idx) => {
-                if (!iso) return <div key={`pad-${idx}`} style={{ padding: 8 }} />;
+                  {month.weeks.flat().map((iso, idx) => {
+                    if (!iso) return <Box key={`pad-${idx}`} sx={{ p: 0.75 }} />;
 
-                const inSprint = sprints.some((s) => iso >= s.startDate && iso <= s.endDate);
-                const holidayLocations = Object.keys(holidaysData).filter((loc) => (holidaysData[loc] || []).includes(iso));
+                    // Determine sprint(s) for this day
+                    const sprintsToday = sprints.filter((s) => iso >= s.startDate && iso <= s.endDate);
+                    const sprintPrimary = sprintsToday[0];
+                    const holidayLocations = Object.keys(holidaysData).filter((loc) => (holidaysData[loc] || []).includes(iso));
 
-                return (
-                  <div key={iso} style={{ minHeight: 72, padding: 6, borderLeft: '1px solid #fff', background: inSprint ? '#E6F7FF' : '#fff', position: 'relative' }}>
-                    <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 11, color: '#6b7280' }}>{iso.slice(8)}</div>
+                    const bgColor = sprintPrimary ? (sprintColorMap.get(sprintPrimary)?.bg || '#E6F7FF') : '#fff';
+                    const borderLeft = sprintPrimary ? `3px solid ${sprintColorMap.get(sprintPrimary)?.border}` : '1px solid #eef2ff';
 
-                    {holidayLocations.length > 0 && <div style={{ position: 'absolute', left: 6, top: 6, width: 8, height: 8, background: '#F3F4F6', borderRadius: 2 }} />}
+                    // Build hover tooltip text
+                    const ptoMembers = members.filter((m) => (m.pto || []).some((p) => iso >= p.fromDate && iso <= p.toDate));
+                    const title = [
+                      `${formatHuman(iso)}`,
+                      sprintPrimary ? `Sprint: ${sprintPrimary.name || ''} (${sprintPrimary.startDate} – ${sprintPrimary.endDate})` : null,
+                      holidayLocations.length ? `Holiday${holidayLocations.length > 1 ? 's' : ''} in: ${holidayLocations.join(', ')}` : null,
+                      ptoMembers.length ? `PTO: ${ptoMembers.map((m) => m.name).join(', ')}` : null,
+                    ].filter(Boolean).join('\n');
 
-                    <div style={{ marginTop: 20, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {members.map((m) => {
-                        const onPto = (m.pto || []).some((p) => iso >= p.fromDate && iso <= p.toDate);
-                        if (!onPto) return null;
-                        const c = colorForString(m.name);
-                        return <div key={m.id + '-' + iso} title={`${m.name} PTO`} style={{ width: 12, height: 12, background: c, borderRadius: 3 }} />;
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                    return (
+                      <Box key={iso} title={title} sx={{ minHeight: 56, p: 0.75, background: bgColor, position: 'relative', borderRadius: 0, borderLeft, borderTop: '1px solid #eef2ff' }}>
+                        <Box sx={{ position: 'absolute', top: 6, right: 6, fontSize: 11, color: '#6b7280' }}>{iso.slice(8)}</Box>
+
+                        {holidayLocations.length > 0 && <Box sx={{ position: 'absolute', left: 6, top: 6, width: 8, height: 8, background: '#F3F4F6', borderRadius: 0 }} />}
+
+                        <Box sx={{ mt: 3, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                          {members.map((m) => {
+                            const onPto = (m.pto || []).some((p) => iso >= p.fromDate && iso <= p.toDate);
+                            if (!onPto) return null;
+                            const c = colorForString(m.name);
+                            return <Box key={m.id + '-' + iso} title={`${m.name} PTO`} sx={{ width: 10, height: 10, background: c, borderRadius: 0 }} />;
+                          })}
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
         ))}
-      </div>
+          </Box>
 
-      <div style={{ display: 'flex', gap: 12, marginTop: 8, alignItems: 'center', fontSize: 13 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 12, height: 12, background: '#E6F7FF', borderRadius: 2 }} />
-          <div style={{ color: '#374151' }}>Sprint day</div>
+      {/* Legend */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10, alignItems: 'center', fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 600, marginRight: 4 }}>Sprints:</div>
+          {sprints.map((s) => {
+            const colors = sprintColorMap.get(s) || { base: '#60a5fa' };
+            return (
+              <div key={`legend-s-${s.name}-${s.startDate}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 12, height: 12, background: colors.base, borderRadius: 2 }} />
+                <div style={{ color: '#374151' }}>{s.name}</div>
+              </div>
+            );
+          })}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 12, height: 12, background: '#FFE6E6', borderRadius: 2 }} />
-          <div style={{ color: '#374151' }}>PTO</div>
+          <div style={{ width: 12, height: 12, background: '#F3F4F6', borderRadius: 2 }} />
+          <div style={{ color: '#374151' }}>Holiday marker</div>
         </div>
+        <div style={{ color: '#374151' }}>Colored dots in each day indicate members on PTO.</div>
       </div>
     </div>
   );
