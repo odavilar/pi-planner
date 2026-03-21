@@ -21,7 +21,7 @@ function eachDateInclusive(startISO, endISO) {
 }
 
 function colorForString(str) {
-  const colors = ['#F97316', '#06B6D4', '#A78BFA', '#F43F5E', '#10B981', '#F59E0B'];
+  const colors = ['#F97316', '#06B6D4', '#A78BFA', '#F43F5E', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#F59E0B'];
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h << 5) - h + str.charCodeAt(i);
   return colors[Math.abs(h) % colors.length];
@@ -124,6 +124,16 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
     return map;
   }, [sprints]);
 
+  // stable, unique colors for members
+  const memberColorMap = useMemo(() => {
+    const colors = ['#F97316', '#06B6D4', '#A78BFA', '#F43F5E', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#EF4444', '#6366F1', '#D946EF'];
+    const map = new Map();
+    members.forEach((m, idx) => {
+      map.set(m.id, colors[idx % colors.length]);
+    });
+    return map;
+  }, [members]);
+
   if (!dates.length) {
     return (
       <div>
@@ -180,13 +190,13 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
                       <Box key={iso} title={title} sx={{ minHeight: 56, p: 0.75, background: bgColor, position: 'relative', borderRadius: 0, borderLeft, borderTop: '1px solid #eef2ff' }}>
                         <Box sx={{ position: 'absolute', top: 6, right: 6, fontSize: 11, color: '#6b7280' }}>{iso.slice(8)}</Box>
 
-                        {holidayLocations.length > 0 && <Box sx={{ position: 'absolute', left: 6, top: 6, width: 8, height: 8, background: '#F3F4F6', borderRadius: 0 }} />}
+                        {holidayLocations.length > 0 && <Box sx={{ position: 'absolute', left: 6, top: 6, width: 8, height: 8, background: '#64748B', borderRadius: '50%' }} />}
 
                         <Box sx={{ mt: 3, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
                           {members.map((m) => {
                             const onPto = (m.pto || []).some((p) => iso >= p.fromDate && iso <= p.toDate);
                             if (!onPto) return null;
-                            const c = colorForString(m.name);
+                            const c = memberColorMap.get(m.id);
                             return <Box key={m.id + '-' + iso} title={`${m.name} PTO`} sx={{ width: 10, height: 10, background: c, borderRadius: 0 }} />;
                           })}
                         </Box>
@@ -199,7 +209,7 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
           </Box>
 
       {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10, alignItems: 'center', fontSize: 13 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10, alignItems: 'flex-start', fontSize: 13 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 600, marginRight: 4 }}>Sprints:</div>
           {sprints.map((s) => {
@@ -212,11 +222,22 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
             );
           })}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 600, marginRight: 4 }}>Members (PTO):</div>
+          {members.map((m) => {
+            const color = memberColorMap.get(m.id);
+            return (
+              <div key={`legend-m-${m.id}`} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 10, height: 10, background: color, borderRadius: 2 }} />
+                <div style={{ color: '#374151' }}>{m.name}</div>
+              </div>
+            );
+          })}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 12, height: 12, background: '#F3F4F6', borderRadius: 2 }} />
+          <div style={{ width: 12, height: 12, background: '#64748B', borderRadius: '50%' }} />
           <div style={{ color: '#374151' }}>Holiday marker</div>
         </div>
-        <div style={{ color: '#374151' }}>Colored dots in each day indicate members on PTO.</div>
       </div>
     </div>
   );
