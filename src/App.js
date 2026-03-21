@@ -29,6 +29,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AutoStoriesOutlinedIcon from "@mui/icons-material/AutoStoriesOutlined";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
@@ -345,6 +346,9 @@ export default function App() {
   });
 
   const [members, setMembers] = useState([]);
+  const [editingMemberId, setEditingMemberId] = useState(null);
+  const [editMemberDraft, setEditMemberDraft] = useState(null);
+  const [editPtoForm, setEditPtoForm] = useState({ fromDate: "", toDate: "" });
   const [memberForm, setMemberForm] = useState({
     name: "",
     location: "",
@@ -495,6 +499,74 @@ export default function App() {
     showToast("Member removed.", "info");
   };
 
+  /* -------- Member Editing -------- */
+
+  const startEditingMember = (id) => {
+    const m = members.find((x) => x.id === id);
+    if (!m) return;
+    setEditMemberDraft(JSON.parse(JSON.stringify(m)));
+    setEditingMemberId(id);
+  };
+
+  const cancelEditMember = () => {
+    setEditingMemberId(null);
+    setEditMemberDraft(null);
+    setEditPtoForm({ fromDate: "", toDate: "" });
+  };
+
+  const onEditMemberChange = (e) => {
+    const { name, value } = e.target;
+    setEditMemberDraft((m) => ({
+      ...m,
+      [name]: name === "allocation" ? Number(value) : value,
+    }));
+  };
+
+  const addPtoToEditMember = () => {
+    if (!editPtoForm.fromDate) {
+      showToast("PTO start date is required.", "warning");
+      return;
+    }
+
+    const toDate = editPtoForm.toDate || editPtoForm.fromDate;
+    if (editPtoForm.fromDate > toDate) {
+      showToast("PTO start date must be before or equal to the end date.", "error");
+      return;
+    }
+
+    setEditMemberDraft((m) => ({
+      ...m,
+      pto: [
+        ...(m.pto || []),
+        { id: crypto.randomUUID(), fromDate: editPtoForm.fromDate, toDate },
+      ],
+    }));
+
+    setEditPtoForm({ fromDate: "", toDate: "" });
+    showToast("PTO added to member draft.", "success");
+  };
+
+  const removeEditPto = (id) => {
+    setEditMemberDraft((m) => ({ ...m, pto: (m.pto || []).filter((p) => p.id !== id) }));
+    showToast("PTO removed from draft.", "info");
+  };
+
+  const saveEditMember = () => {
+    if (!editMemberDraft.name || !editMemberDraft.location) {
+      showToast("Member name and location are required.", "warning");
+      return;
+    }
+
+    if (editMemberDraft.allocation < 0 || editMemberDraft.allocation > 100) {
+      showToast("Allocation must be between 0 and 100.", "error");
+      return;
+    }
+
+    setMembers((prev) => prev.map((m) => (m.id === editingMemberId ? editMemberDraft : m)));
+    cancelEditMember();
+    showToast("Member updated successfully.", "success");
+  };
+
   /* -------- Validation -------- */
 
   const validationIssues = useMemo(() => {
@@ -613,7 +685,9 @@ export default function App() {
 
         setPi(importedPi);
         setSprints(normalizedSprints);
-        setMembers(data.members);
+        setMembers(
+          data.members.map((m) => ({ ...m, id: m.id || crypto.randomUUID(), pto: m.pto || [] }))
+        );
         showToast("Plan imported successfully.", "success");
       } catch (e) {
         showToast(`Import failed: ${e.message}`, "error");
@@ -629,6 +703,8 @@ export default function App() {
 
   const piDateLabel =
     pi.startDate && pi.endDate ? `${pi.startDate} → ${pi.endDate}` : "Dates not set";
+
+  
 
   return (
     <ThemeProvider theme={theme}>
@@ -926,36 +1002,124 @@ export default function App() {
                               variant="outlined"
                               sx={{ p: 1.5, borderRadius: 2 }}
                             >
-                              <Stack
-                                direction={{ xs: "column", sm: "row" }}
-                                spacing={1}
-                                justifyContent="space-between"
-                                alignItems={{ xs: "flex-start", sm: "center" }}
-                              >
-                                <Box>
-                                  <Typography variant="subtitle2">{m.name}</Typography>
-                                  <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    sx={{ mt: 0.75, flexWrap: "wrap" }}
-                                  >
-                                    <Chip size="small" label={m.location} />
-                                    <Chip
-                                      size="small"
-                                      variant="outlined"
-                                      label={`${m.allocation}% allocation`}
+                              {editingMemberId === m.id && editMemberDraft ? (
+                                <Stack spacing={1}>
+                                  <Box>
+                                    <TextField
+                                      label="Name"
+                                      name="name"
+                                      value={editMemberDraft.name}
+                                      onChange={onEditMemberChange}
                                     />
-                                    <Chip
-                                      size="small"
-                                      variant="outlined"
-                                      label={`${m.pto.length} PTO entries`}
+
+                                    <TextField
+                                      label="Location"
+                                      name="location"
+                                      value={editMemberDraft.location}
+                                      onChange={onEditMemberChange}
+                                      placeholder="London"
+                                      inputProps={{ list: "locations" }}
+                                      sx={{ mt: 1 }}
                                     />
+
+                                    <TextField
+                                      label="Allocation %"
+                                      type="number"
+                                      inputProps={{ min: 0, max: 100 }}
+                                      name="allocation"
+                                      value={editMemberDraft.allocation}
+                                      onChange={onEditMemberChange}
+                                      sx={{ mt: 1 }}
+                                    />
+
+                                    <Divider sx={{ my: 1 }} />
+
+                                    <Typography variant="subtitle2">PTO</Typography>
+                                    <Stack spacing={1} sx={{ mt: 1 }}>
+                                      {(editMemberDraft.pto || []).map((p) => (
+                                        <Paper
+                                          key={p.id}
+                                          variant="outlined"
+                                          sx={{ p: 1, borderRadius: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                                        >
+                                          <Typography variant="body2">{p.fromDate} → {p.toDate}</Typography>
+                                          <IconButton color="error" onClick={() => removeEditPto(p.id)}>
+                                            <DeleteOutlineIcon />
+                                          </IconButton>
+                                        </Paper>
+                                      ))}
+
+                                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+                                        <PlannerDateField
+                                          label="From"
+                                          required
+                                          value={editPtoForm.fromDate}
+                                          onChange={(value) => setEditPtoForm((prev) => ({ ...prev, fromDate: value }))}
+                                          maxDate={editPtoForm.toDate || undefined}
+                                          emptyHelperText="Select PTO start date"
+                                        />
+
+                                        <PlannerDateField
+                                          label="To"
+                                          value={editPtoForm.toDate}
+                                          onChange={(value) => setEditPtoForm((prev) => ({ ...prev, toDate: value }))}
+                                          minDate={editPtoForm.fromDate || undefined}
+                                          emptyHelperText="Optional — defaults to the same day"
+                                        />
+
+                                        <Button variant="outlined" onClick={addPtoToEditMember}>
+                                          Add PTO
+                                        </Button>
+                                      </Stack>
+                                    </Stack>
+                                  </Box>
+
+                                  <Stack direction="row" spacing={1} justifyContent="flex-end">
+                                    <Button variant="contained" onClick={saveEditMember}>
+                                      Save
+                                    </Button>
+                                    <Button variant="outlined" onClick={cancelEditMember}>
+                                      Cancel
+                                    </Button>
                                   </Stack>
-                                </Box>
-                                <IconButton color="error" onClick={() => removeMember(m.id)}>
-                                  <DeleteOutlineIcon />
-                                </IconButton>
-                              </Stack>
+                                </Stack>
+                              ) : (
+                                <Stack
+                                  direction={{ xs: "column", sm: "row" }}
+                                  spacing={1}
+                                  justifyContent="space-between"
+                                  alignItems={{ xs: "flex-start", sm: "center" }}
+                                >
+                                  <Box>
+                                    <Typography variant="subtitle2">{m.name}</Typography>
+                                    <Stack
+                                      direction="row"
+                                      spacing={1}
+                                      sx={{ mt: 0.75, flexWrap: "wrap" }}
+                                    >
+                                      <Chip size="small" label={m.location} />
+                                      <Chip
+                                        size="small"
+                                        variant="outlined"
+                                        label={`${m.allocation}% allocation`}
+                                      />
+                                      <Chip
+                                        size="small"
+                                        variant="outlined"
+                                        label={`${(m.pto || []).length} PTO entries`}
+                                      />
+                                    </Stack>
+                                  </Box>
+                                  <Stack direction="row" spacing={1}>
+                                    <IconButton color="primary" onClick={() => startEditingMember(m.id)}>
+                                      <EditOutlinedIcon />
+                                    </IconButton>
+                                    <IconButton color="error" onClick={() => removeMember(m.id)}>
+                                      <DeleteOutlineIcon />
+                                    </IconButton>
+                                  </Stack>
+                                </Stack>
+                              )}
                             </Paper>
                           ))
                         )}

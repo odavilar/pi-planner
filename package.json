@@ -43,4 +43,12 @@
       "last 1 safari version"
     ]
   }
+  ,
+  "jest": {
+    "moduleNameMapper": {
+      "^@mui/x-date-pickers/DatePicker$": "<rootDir>/src/testMocks/DatePickerMock.js",
+      "^@mui/x-date-pickers/LocalizationProvider$": "<rootDir>/src/testMocks/LocalizationProviderMock.js",
+      "^@mui/x-date-pickers/AdapterDateFns$": "<rootDir>/src/testMocks/AdapterDateFnsMock.js"
+    }
+  }
 }
