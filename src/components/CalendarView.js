@@ -71,25 +71,37 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
     while (cur <= end) {
       const year = cur.getFullYear();
       const month = cur.getMonth();
-      // get first day of month and last day
+      // get first and last day of month
       const first = new Date(year, month, 1);
       const last = new Date(year, month + 1, 0);
-      // build weeks grid (Sun-Sat)
+
+      // Determine Monday-start week range covering the whole month
+      const start = new Date(first);
+      const startDay = start.getDay() === 0 ? 7 : start.getDay(); // 1..7 (Mon..Sun)
+      start.setDate(start.getDate() - (startDay - 1)); // move to Monday
+
+      const finish = new Date(last);
+      const finishDay = finish.getDay() === 0 ? 7 : finish.getDay();
+      finish.setDate(finish.getDate() + (7 - finishDay)); // move to Sunday
+
+      // build weeks grid (Mon-Fri only)
       const weeks = [];
-      let week = [];
-      // pad first week with nulls until first.getDay()
-      for (let i = 0; i < first.getDay(); i++) week.push(null);
-      for (let d = 1; d <= last.getDate(); d++) {
-        const iso = new Date(year, month, d).toISOString().slice(0, 10);
-        week.push(iso);
-        if (week.length === 7) {
-          weeks.push(week);
-          week = [];
+      let cursor = new Date(start);
+      while (cursor <= finish) {
+        const week = [];
+        // for Mon..Fri (1..5)
+        for (let dow = 1; dow <= 5; dow++) {
+          const d = new Date(cursor);
+          d.setDate(d.getDate() + (dow - 1));
+          if (d.getMonth() === month) {
+            week.push(d.toISOString().slice(0, 10));
+          } else {
+            week.push(null);
+          }
         }
-      }
-      if (week.length) {
-        while (week.length < 7) week.push(null);
         weeks.push(week);
+        // advance to next Monday
+        cursor.setDate(cursor.getDate() + 7);
       }
 
       out.push({ year, month, weeks, label: first.toLocaleString(undefined, { month: 'long', year: 'numeric' }) });
@@ -139,8 +151,8 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
                   <Box sx={{ fontWeight: 700 }}>{month.label}</Box>
                 </Box>
 
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, p: 1 }}>
-                  {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d) => (
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, p: 1 }}>
+                  {['Mon','Tue','Wed','Thu','Fri'].map((d) => (
                     <Box key={d} sx={{ p: 0.75, background: '#f8fafc', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>{d}</Box>
                   ))}
 
