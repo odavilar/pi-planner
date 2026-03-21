@@ -9,8 +9,6 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
-  Button,
   Stack,
   Chip,
   Alert,
@@ -22,22 +20,22 @@ import {
   TableCell,
   TableBody,
   Paper,
-  Divider,
-  IconButton,
+  
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import AutoStoriesOutlinedIcon from "@mui/icons-material/AutoStoriesOutlined";
 import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
-import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
-import AddOutlinedIcon from "@mui/icons-material/AddOutlined";
+
 import holidaysData from "./holidays.json";
+import PiForm from "./components/PiForm";
+import SprintList from "./components/SprintList";
+import MemberList from "./components/MemberList";
+import ImportExport from "./components/ImportExport";
+import CalendarView from "./components/CalendarView";
 
 /* ---------------------- Theme ---------------------- */
 
@@ -231,6 +229,7 @@ function normalizeSprintNames(sprints, piName) {
 
   return sorted.map((s, index) => ({
     ...s,
+    id: s.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sprint-${Date.now()}-${index}`),
     name: `${base}.${index + 1}`,
   }));
 }
@@ -296,8 +295,8 @@ function PlannerDateField({
   return (
     <DatePicker
       label={label}
-      format="yyyy-MM-dd"
-      value={value ? parseDate(value) : null}
+        format="yyyy-MM-dd"
+        value={value ? parseDate(value) : undefined}
       onChange={(newValue) => {
         if (!newValue || Number.isNaN(newValue.getTime())) {
           onChange("");
@@ -686,7 +685,11 @@ export default function App() {
         setPi(importedPi);
         setSprints(normalizedSprints);
         setMembers(
-          data.members.map((m) => ({ ...m, id: m.id || crypto.randomUUID(), pto: m.pto || [] }))
+          data.members.map((m, idx) => ({
+            ...m,
+            id: m.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `member-${Date.now()}-${idx}`),
+            pto: m.pto || [],
+          }))
         );
         showToast("Plan imported successfully.", "success");
       } catch (e) {
@@ -748,385 +751,41 @@ export default function App() {
             >
               {/* LEFT COLUMN */}
               <Stack spacing={3}>
-                <Card>
-                  <CardContent>
-                    <SectionHeader
-                      title="Program Increment"
-                      subtitle="Define the PI name and date range. Required date fields stay highlighted until selected."
-                    />
-                    <Stack spacing={2}>
-                      <TextField
-                        label="PI Name"
-                        name="name"
-                        value={pi.name}
-                        onChange={onPiChange}
-                      />
+                <PiForm pi={pi} onPiChange={onPiChange} PlannerDateField={PlannerDateField} setPi={setPi} />
 
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                        <PlannerDateField
-                          label="Start Date"
-                          required
-                          value={pi.startDate}
-                          onChange={(value) =>
-                            setPi((prev) => ({
-                              ...prev,
-                              startDate: value,
-                            }))
-                          }
-                          maxDate={pi.endDate || undefined}
-                          emptyHelperText="Select the PI start date"
-                        />
+                <SprintList
+                  sprints={sprints}
+                  sprintForm={sprintForm}
+                  setSprintForm={setSprintForm}
+                  addSprint={addSprint}
+                  removeSprint={removeSprint}
+                  pi={pi}
+                  PlannerDateField={PlannerDateField}
+                />
 
-                        <PlannerDateField
-                          label="End Date"
-                          required
-                          value={pi.endDate}
-                          onChange={(value) =>
-                            setPi((prev) => ({
-                              ...prev,
-                              endDate: value,
-                            }))
-                          }
-                          minDate={pi.startDate || undefined}
-                          emptyHelperText="Select the PI end date"
-                        />
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent>
-                    <SectionHeader
-                      title="Sprints"
-                      subtitle="Add sprint date ranges. Names are generated automatically from the PI name and sorted by date."
-                    />
-                    <Stack spacing={2}>
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                        <PlannerDateField
-                          label="Start Date"
-                          required
-                          value={sprintForm.startDate}
-                          onChange={(value) =>
-                            setSprintForm((prev) => ({
-                              ...prev,
-                              startDate: value,
-                            }))
-                          }
-                          minDate={pi.startDate || undefined}
-                          maxDate={sprintForm.endDate || pi.endDate || undefined}
-                          emptyHelperText="Select sprint start date"
-                        />
-
-                        <PlannerDateField
-                          label="End Date"
-                          required
-                          value={sprintForm.endDate}
-                          onChange={(value) =>
-                            setSprintForm((prev) => ({
-                              ...prev,
-                              endDate: value,
-                            }))
-                          }
-                          minDate={sprintForm.startDate || pi.startDate || undefined}
-                          maxDate={pi.endDate || undefined}
-                          emptyHelperText="Select sprint end date"
-                        />
-                      </Stack>
-
-                      <Button
-                        variant="contained"
-                        startIcon={<AddOutlinedIcon />}
-                        onClick={addSprint}
-                      >
-                        Add Sprint
-                      </Button>
-
-                      <Divider />
-
-                      <Stack spacing={1.25}>
-                        {sprints.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary">
-                            No sprints added yet.
-                          </Typography>
-                        ) : (
-                          sprints.map((s) => (
-                            <Paper
-                              key={s.id}
-                              variant="outlined"
-                              sx={{
-                                p: 1.5,
-                                borderRadius: 2,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 1,
-                              }}
-                            >
-                              <Box>
-                                <Typography variant="subtitle2">{s.name}</Typography>
-                                <Typography variant="body2" color="text.secondary">
-                                  {s.startDate} → {s.endDate}
-                                </Typography>
-                              </Box>
-                              <IconButton color="error" onClick={() => removeSprint(s.id)}>
-                                <DeleteOutlineIcon />
-                              </IconButton>
-                            </Paper>
-                          ))
-                        )}
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent>
-                    <SectionHeader
-                      title="Team Members"
-                      subtitle="Create a member, assign a location, allocation, and PTO."
-                    />
-
-                    <Stack spacing={2}>
-                      <TextField
-                        label="Name"
-                        name="name"
-                        value={memberForm.name}
-                        onChange={onMemberChange}
-                      />
-
-                      <TextField
-                        label="Location"
-                        name="location"
-                        value={memberForm.location}
-                        onChange={onMemberChange}
-                        placeholder="London"
-                        select={false}
-                        inputProps={{ list: "locations" }}
-                      />
-                      <datalist id="locations">
-                        {Object.keys(holidaysData).map((loc) => (
-                          <option key={loc} value={loc} />
-                        ))}
-                      </datalist>
-
-                      <TextField
-                        label="Allocation %"
-                        type="number"
-                        inputProps={{ min: 0, max: 100 }}
-                        name="allocation"
-                        value={memberForm.allocation}
-                        onChange={onMemberChange}
-                      />
-
-                      <Divider />
-
-                      <Typography variant="subtitle1">Draft PTO</Typography>
-                      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                        <PlannerDateField
-                          label="From"
-                          required
-                          value={ptoForm.fromDate}
-                          onChange={(value) =>
-                            setPtoForm((prev) => ({
-                              ...prev,
-                              fromDate: value,
-                            }))
-                          }
-                          maxDate={ptoForm.toDate || undefined}
-                          emptyHelperText="Select PTO start date"
-                        />
-
-                        <PlannerDateField
-                          label="To"
-                          value={ptoForm.toDate}
-                          onChange={(value) =>
-                            setPtoForm((prev) => ({
-                              ...prev,
-                              toDate: value,
-                            }))
-                          }
-                          minDate={ptoForm.fromDate || undefined}
-                          emptyHelperText="Optional — defaults to the same day"
-                        />
-                      </Stack>
-
-                      <Button variant="outlined" onClick={addPtoToMemberDraft}>
-                        Add PTO to Draft Member
-                      </Button>
-
-                      <Stack spacing={1}>
-                        {memberForm.pto.map((p) => (
-                          <Paper
-                            key={p.id}
-                            variant="outlined"
-                            sx={{
-                              p: 1.25,
-                              borderRadius: 2,
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Typography variant="body2">
-                              PTO: {p.fromDate} → {p.toDate}
-                            </Typography>
-                            <IconButton color="error" onClick={() => removeDraftPto(p.id)}>
-                              <DeleteOutlineIcon />
-                            </IconButton>
-                          </Paper>
-                        ))}
-                      </Stack>
-
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={addMember}
-                        startIcon={<AddOutlinedIcon />}
-                      >
-                        Add Member
-                      </Button>
-
-                      <Divider />
-
-                      <Typography variant="subtitle1">Current Members</Typography>
-                      <Stack spacing={1.25}>
-                        {members.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary">
-                            No members added yet.
-                          </Typography>
-                        ) : (
-                          members.map((m) => (
-                            <Paper
-                              key={m.id}
-                              variant="outlined"
-                              sx={{ p: 1.5, borderRadius: 2 }}
-                            >
-                              {editingMemberId === m.id && editMemberDraft ? (
-                                <Stack spacing={1}>
-                                  <Box>
-                                    <TextField
-                                      label="Name"
-                                      name="name"
-                                      value={editMemberDraft.name}
-                                      onChange={onEditMemberChange}
-                                    />
-
-                                    <TextField
-                                      label="Location"
-                                      name="location"
-                                      value={editMemberDraft.location}
-                                      onChange={onEditMemberChange}
-                                      placeholder="London"
-                                      inputProps={{ list: "locations" }}
-                                      sx={{ mt: 1 }}
-                                    />
-
-                                    <TextField
-                                      label="Allocation %"
-                                      type="number"
-                                      inputProps={{ min: 0, max: 100 }}
-                                      name="allocation"
-                                      value={editMemberDraft.allocation}
-                                      onChange={onEditMemberChange}
-                                      sx={{ mt: 1 }}
-                                    />
-
-                                    <Divider sx={{ my: 1 }} />
-
-                                    <Typography variant="subtitle2">PTO</Typography>
-                                    <Stack spacing={1} sx={{ mt: 1 }}>
-                                      {(editMemberDraft.pto || []).map((p) => (
-                                        <Paper
-                                          key={p.id}
-                                          variant="outlined"
-                                          sx={{ p: 1, borderRadius: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}
-                                        >
-                                          <Typography variant="body2">{p.fromDate} → {p.toDate}</Typography>
-                                          <IconButton color="error" onClick={() => removeEditPto(p.id)}>
-                                            <DeleteOutlineIcon />
-                                          </IconButton>
-                                        </Paper>
-                                      ))}
-
-                                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
-                                        <PlannerDateField
-                                          label="From"
-                                          required
-                                          value={editPtoForm.fromDate}
-                                          onChange={(value) => setEditPtoForm((prev) => ({ ...prev, fromDate: value }))}
-                                          maxDate={editPtoForm.toDate || undefined}
-                                          emptyHelperText="Select PTO start date"
-                                        />
-
-                                        <PlannerDateField
-                                          label="To"
-                                          value={editPtoForm.toDate}
-                                          onChange={(value) => setEditPtoForm((prev) => ({ ...prev, toDate: value }))}
-                                          minDate={editPtoForm.fromDate || undefined}
-                                          emptyHelperText="Optional — defaults to the same day"
-                                        />
-
-                                        <Button variant="outlined" onClick={addPtoToEditMember}>
-                                          Add PTO
-                                        </Button>
-                                      </Stack>
-                                    </Stack>
-                                  </Box>
-
-                                  <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                    <Button variant="contained" onClick={saveEditMember}>
-                                      Save
-                                    </Button>
-                                    <Button variant="outlined" onClick={cancelEditMember}>
-                                      Cancel
-                                    </Button>
-                                  </Stack>
-                                </Stack>
-                              ) : (
-                                <Stack
-                                  direction={{ xs: "column", sm: "row" }}
-                                  spacing={1}
-                                  justifyContent="space-between"
-                                  alignItems={{ xs: "flex-start", sm: "center" }}
-                                >
-                                  <Box>
-                                    <Typography variant="subtitle2">{m.name}</Typography>
-                                    <Stack
-                                      direction="row"
-                                      spacing={1}
-                                      sx={{ mt: 0.75, flexWrap: "wrap" }}
-                                    >
-                                      <Chip size="small" label={m.location} />
-                                      <Chip
-                                        size="small"
-                                        variant="outlined"
-                                        label={`${m.allocation}% allocation`}
-                                      />
-                                      <Chip
-                                        size="small"
-                                        variant="outlined"
-                                        label={`${(m.pto || []).length} PTO entries`}
-                                      />
-                                    </Stack>
-                                  </Box>
-                                  <Stack direction="row" spacing={1}>
-                                    <IconButton color="primary" onClick={() => startEditingMember(m.id)}>
-                                      <EditOutlinedIcon />
-                                    </IconButton>
-                                    <IconButton color="error" onClick={() => removeMember(m.id)}>
-                                      <DeleteOutlineIcon />
-                                    </IconButton>
-                                  </Stack>
-                                </Stack>
-                              )}
-                            </Paper>
-                          ))
-                        )}
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <MemberList
+                  memberForm={memberForm}
+                  onMemberChange={onMemberChange}
+                  ptoForm={ptoForm}
+                  setPtoForm={setPtoForm}
+                  addPtoToMemberDraft={addPtoToMemberDraft}
+                  removeDraftPto={removeDraftPto}
+                  addMember={addMember}
+                  members={members}
+                  removeMember={removeMember}
+                  editingMemberId={editingMemberId}
+                  editMemberDraft={editMemberDraft}
+                  startEditingMember={startEditingMember}
+                  cancelEditMember={cancelEditMember}
+                  onEditMemberChange={onEditMemberChange}
+                  editPtoForm={editPtoForm}
+                  setEditPtoForm={setEditPtoForm}
+                  addPtoToEditMember={addPtoToEditMember}
+                  removeEditPto={removeEditPto}
+                  saveEditMember={saveEditMember}
+                  PlannerDateField={PlannerDateField}
+                  holidaysData={holidaysData}
+                />
               </Stack>
 
               {/* RIGHT COLUMN */}
@@ -1167,6 +826,12 @@ export default function App() {
                     color="warning.main"
                   />
                 </Box>
+
+                <Card>
+                  <CardContent>
+                    <CalendarView pi={pi} sprints={sprints} members={members} holidaysData={holidaysData} />
+                  </CardContent>
+                </Card>
 
                 <Card>
                   <CardContent>
@@ -1338,38 +1003,7 @@ export default function App() {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardContent>
-                    <SectionHeader
-                      title="Import / Export"
-                      subtitle="Save the current plan locally or load an existing JSON file."
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                      <Button
-                        variant="contained"
-                        color="secondary"
-                        startIcon={<DownloadOutlinedIcon />}
-                        onClick={exportPlan}
-                      >
-                        Export Plan JSON
-                      </Button>
-
-                      <Button
-                        component="label"
-                        variant="outlined"
-                        startIcon={<UploadFileOutlinedIcon />}
-                      >
-                        Import Plan JSON
-                        <input
-                          hidden
-                          type="file"
-                          accept="application/json"
-                          onChange={importPlan}
-                        />
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <ImportExport exportPlan={exportPlan} importPlan={importPlan} />
               </Stack>
             </Box>
           </Container>
