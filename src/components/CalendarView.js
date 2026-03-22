@@ -187,7 +187,13 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
                     // Determine sprint(s) for this day
                     const sprintsToday = sprints.filter((s) => iso >= s.startDate && iso <= s.endDate);
                     const sprintPrimary = sprintsToday[0];
-                    const holidayLocations = Object.keys(holidaysData).filter((loc) => (holidaysData[loc] || []).includes(iso));
+                    // Only consider holidays for locations where team members are based
+                    const memberLocations = new Set((members || []).map((m) => m.location).filter(Boolean));
+                    const holidayLocations = Object.keys(holidaysData).filter((loc) => {
+                      if (!memberLocations.size) return false;
+                      if (!memberLocations.has(loc)) return false;
+                      return (holidaysData[loc] || []).includes(iso);
+                    });
 
                     const bgColor = sprintPrimary ? (sprintColorMap.get(sprintPrimary)?.bg || '#E6F7FF') : '#fff';
                     const borderLeft = sprintPrimary ? `3px solid ${sprintColorMap.get(sprintPrimary)?.border}` : '1px solid #eef2ff';

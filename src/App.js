@@ -684,11 +684,28 @@ export default function App() {
 
         setPi(importedPi);
         setSprints(normalizedSprints);
+        // Normalize member locations to match keys in holidaysData when possible
+        const findMatchingHolidayKey = (loc) => {
+          if (!loc) return loc;
+          const keys = Object.keys(holidaysData);
+          // exact match
+          const exact = keys.find((k) => k === loc);
+          if (exact) return exact;
+          // match by prefix code like "TSR - ..." where loc might be "TSR"
+          const prefix = keys.find((k) => k.split(' - ')[0] === loc);
+          if (prefix) return prefix;
+          // match by city substring (case-insensitive)
+          const substr = keys.find((k) => k.toLowerCase().includes(loc.toLowerCase()));
+          if (substr) return substr;
+          return loc;
+        };
+
         setMembers(
           data.members.map((m, idx) => ({
             ...m,
             id: m.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `member-${Date.now()}-${idx}`),
             pto: m.pto || [],
+            location: findMatchingHolidayKey(m.location),
           }))
         );
         showToast("Plan imported successfully.", "success");
