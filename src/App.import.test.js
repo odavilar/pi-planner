@@ -35,6 +35,11 @@ test('imports plan JSON and shows imported member', async () => {
     fireEvent.change(input, { target: { files: [file] } });
   });
 
+  // Dialog should appear; click "Merge" button to confirm import
+  const mergeButtons = await waitFor(() => screen.getAllByRole('button', { name: /Merge/ }));
+  expect(mergeButtons.length).toBeGreaterThan(0);
+  fireEvent.click(mergeButtons[0]);
+
   // After import, PI name and date range should update
   await waitFor(() => expect(screen.getAllByText(/Test PI/).length).toBeGreaterThan(0));
   expect(screen.getByText(/2026-01-01 → 2026-01-31/)).toBeInTheDocument();
@@ -54,6 +59,11 @@ test('imported members map to holiday calendars and holiday markers render', asy
   await waitFor(() => {
     fireEvent.change(input, { target: { files: [file] } });
   });
+
+  // Dialog should appear; click "Merge" button to confirm import
+  const mergeButtons = await waitFor(() => screen.getAllByRole('button', { name: /Merge/ }));
+  expect(mergeButtons.length).toBeGreaterThan(0);
+  fireEvent.click(mergeButtons[0]);
 
   // Wait for import to apply
   await waitFor(() => expect(screen.getAllByText(/Holiday PI/).length).toBeGreaterThan(0));

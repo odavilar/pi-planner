@@ -20,7 +20,11 @@ import {
   TableCell,
   TableBody,
   Paper,
-  
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -363,6 +367,9 @@ export default function App() {
     severity: "info",
   });
 
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFileData, setImportFileData] = useState(null);
+
   const showToast = (message, severity = "info") => {
     setSnackbar({
       open: true,
@@ -650,15 +657,41 @@ export default function App() {
 
   /* -------- Export / Import -------- */
 
+  const findMatchingHolidayKey = (loc) => {
+    if (!loc) return loc;
+    const keys = Object.keys(holidaysData);
+    const exact = keys.find((k) => k === loc);
+    if (exact) return exact;
+    const prefix = keys.find((k) => k.split(' - ')[0] === loc);
+    if (prefix) return prefix;
+    const substr = keys.find((k) => k.toLowerCase().includes(loc.toLowerCase()));
+    if (substr) return substr;
+    return loc;
+  };
+
   const exportPlan = () => {
-    const plan = { pi, sprints, members };
-    const blob = new Blob([JSON.stringify(plan, null, 2)], {
-      type: "application/json",
-    });
+    const exportData = {};
+    // Only export PI if sprints are also being exported
+    if ((pi.name || pi.startDate || pi.endDate) && sprints.length > 0) exportData.pi = pi;
+    if (sprints.length > 0) exportData.sprints = sprints;
+    if (members.length > 0) exportData.members = members;
+
+    if (Object.keys(exportData).length === 0) {
+      showToast("Nothing to export. Add PI, sprints, or members first.", "warning");
+      return;
+    }
+
+    const fileName = [
+      exportData.pi ? "pi" : null,
+      exportData.sprints ? "sprints" : null,
+      exportData.members ? "team" : null
+    ].filter(Boolean).join("-") + ".json";
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "pi-plan.json";
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
     showToast("Plan exported successfully.", "success");
@@ -672,51 +705,75 @@ export default function App() {
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        if (!data.pi || !Array.isArray(data.sprints) || !Array.isArray(data.members)) {
-          throw new Error("Invalid JSON structure.");
-        }
-
-        const importedPi = data.pi;
-        const normalizedSprints = normalizeSprintNames(
-          data.sprints,
-          importedPi?.name || "PI"
-        );
-
-        setPi(importedPi);
-        setSprints(normalizedSprints);
-        // Normalize member locations to match keys in holidaysData when possible
-        const findMatchingHolidayKey = (loc) => {
-          if (!loc) return loc;
-          const keys = Object.keys(holidaysData);
-          // exact match
-          const exact = keys.find((k) => k === loc);
-          if (exact) return exact;
-          // match by prefix code like "TSR - ..." where loc might be "TSR"
-          const prefix = keys.find((k) => k.split(' - ')[0] === loc);
-          if (prefix) return prefix;
-          // match by city substring (case-insensitive)
-          const substr = keys.find((k) => k.toLowerCase().includes(loc.toLowerCase()));
-          if (substr) return substr;
-          return loc;
-        };
-
-        setMembers(
-          data.members.map((m, idx) => ({
-            ...m,
-            id: m.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `member-${Date.now()}-${idx}`),
-            pto: m.pto || [],
-            location: findMatchingHolidayKey(m.location),
-          }))
-        );
-        showToast("Plan imported successfully.", "success");
+        setImportFileData(data);
+        setImportDialogOpen(true);
       } catch (e) {
         showToast(`Import failed: ${e.message}`, "error");
       }
     };
     reader.readAsText(file);
-
-    // Allows re-importing the same file without needing to pick a different one first
     event.target.value = "";
+  };
+
+  const handleImportConfirm = (mergeMode) => {
+    if (!importFileData) return;
+
+    try {
+      const data = importFileData;
+
+      if (mergeMode === "replace") {
+        // Replace all: clear and load everything from file
+        const importedPi = data.pi || pi;
+        const importedSprints = normalizeSprintNames(
+          data.sprints || [],
+          importedPi?.name || "PI"
+        );
+        const importedMembers = (data.members || []).map((m, idx) => ({
+          ...m,
+          id: m.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `member-${Date.now()}-${idx}`),
+          pto: m.pto || [],
+          location: findMatchingHolidayKey(m.location),
+        }));
+
+        setPi(importedPi);
+        setSprints(importedSprints);
+        setMembers(importedMembers);
+        showToast("Plan replaced successfully.", "success");
+      } else {
+        // Merge: update only what's in the file
+        if (data.pi || data.sprints) {
+          const importedPi = data.pi || pi;
+          const importedSprints = normalizeSprintNames(
+            data.sprints || sprints,
+            importedPi?.name || "PI"
+          );
+          setPi(importedPi);
+          setSprints(importedSprints);
+        }
+
+        if (data.members) {
+          const importedMembers = data.members.map((m, idx) => ({
+            ...m,
+            id: m.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `member-${Date.now()}-${idx}`),
+            pto: m.pto || [],
+            location: findMatchingHolidayKey(m.location),
+          }));
+          // Merge: add/update members by id
+          setMembers((prev) => {
+            const map = new Map(prev.map((m) => [m.id, m]));
+            importedMembers.forEach((m) => map.set(m.id, m));
+            return Array.from(map.values());
+          });
+        }
+
+        showToast("Data merged successfully.", "success");
+      }
+
+      setImportDialogOpen(false);
+      setImportFileData(null);
+    } catch (e) {
+      showToast(`Import failed: ${e.message}`, "error");
+    }
   };
 
   /* -------- Derived UI values -------- */
@@ -1024,6 +1081,38 @@ export default function App() {
               </Stack>
             </Box>
           </Container>
+
+          {/* Import Confirmation Dialog */}
+          <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} maxWidth="sm" fullWidth>
+            <DialogTitle>Import Plan</DialogTitle>
+            <DialogContent>
+              <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  This file contains:
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap">
+                  {importFileData?.pi && <Chip label="PI" variant="outlined" color="primary" />}
+                  {importFileData?.sprints && <Chip label="Sprints" variant="outlined" color="primary" />}
+                  {importFileData?.members && <Chip label="Team Members" variant="outlined" color="primary" />}
+                </Stack>
+                <Typography variant="body2" sx={{ mt: 2 }}>
+                  <strong>Merge:</strong> Update only the data from this file, keep existing data not in the file.
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Replace All:</strong> Clear everything and import data from this file.
+                </Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setImportDialogOpen(false)}>Cancel</Button>
+              <Button onClick={() => handleImportConfirm("merge")} variant="contained">
+                Merge
+              </Button>
+              <Button onClick={() => handleImportConfirm("replace")} variant="contained" color="error">
+                Replace All
+              </Button>
+            </DialogActions>
+          </Dialog>
 
           <Snackbar
             open={snackbar.open}
