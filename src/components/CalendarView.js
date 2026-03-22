@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Box } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import { Box, Collapse, IconButton } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 function parseDate(iso) {
   return new Date(iso + 'T00:00:00');
@@ -134,6 +135,8 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
     return map;
   }, [members]);
 
+  const [collapsed, setCollapsed] = useState(false);
+
   if (!dates.length) {
     return (
       <div>
@@ -152,9 +155,21 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
           <strong>Calendar</strong>
           <div style={{ fontSize: 12, color: '#6b7280' }}>{pi.startDate} – {pi.endDate}</div>
         </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ fontSize: 12, color: '#6b7280' }}>{months.length} month{months.length !== 1 ? 's' : ''}</div>
+          <IconButton
+            aria-label={collapsed ? 'Expand calendar' : 'Collapse calendar'}
+            onClick={() => setCollapsed((c) => !c)}
+            sx={{ transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms' }}
+            size="small"
+          >
+            <ExpandMoreIcon />
+          </IconButton>
+        </div>
       </div>
 
-      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' } }}>
+      <Collapse in={!collapsed} timeout="auto" unmountOnExit>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' } }}>
             {months.map((month) => (
               <Box key={`${month.year}-${month.month}`} sx={{ border: '1px solid #eef2ff', borderRadius: 1, overflow: 'hidden', bgcolor: 'background.paper' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1.25, borderBottom: '1px solid #eef2ff' }}>
@@ -208,8 +223,8 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
         ))}
           </Box>
 
-      {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10, alignItems: 'flex-start', fontSize: 13 }}>
+          {/* Legend */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 10, alignItems: 'flex-start', fontSize: 13 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 600, marginRight: 4 }}>Sprints:</div>
           {sprints.map((s) => {
@@ -238,7 +253,12 @@ export default function CalendarView({ pi, sprints = [], members = [], holidaysD
           <div style={{ width: 12, height: 12, background: '#64748B', borderRadius: '50%' }} />
           <div style={{ color: '#374151' }}>Holiday marker</div>
         </div>
-      </div>
+          </div>
+      </Collapse>
+
+      {collapsed && (
+        <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>Calendar collapsed — click the chevron to expand.</div>
+      )}
     </div>
   );
 }
