@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import React, { useMemo, useState } from 'react';
 import { Box, Collapse, IconButton } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';

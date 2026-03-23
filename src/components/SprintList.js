@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import React from 'react';
 import { Card, CardContent, Stack, Button, Divider, Paper, Box, Typography, IconButton } from '@mui/material';
 import AddOutlinedIcon from '@mui/icons-material/AddOutlined';

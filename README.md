@@ -1,70 +1,68 @@
-# Getting Started with Create React App
+PI Capacity Planner
+====================
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A lightweight browser-based tool to plan a Program Increment (PI), manage sprints and team members, and visualize capacity, PTO and public holidays across locations.
 
-## Available Scripts
+Purpose
+-------
+Help teams estimate capacity and story-point allocation across a PI using an interactive calendar view and simple import/export workflows.
 
-In the project directory, you can run:
+Quickstart (fast)
+------------------
+1. Install dependencies:
 
-### `npm start`
+	 npm install
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+2. Start the app locally:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+	 npm start
 
-### `npm test`
+3. Open the app in your browser at http://localhost:3000 (or the URL shown in the console).
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Usage (what users care about)
+-----------------------------
+- Program Increment (PI): define the PI name and date range in the top-left "Program Increment" panel.
+- Sprints: add numbered sprints with start/end dates. Sprints drive capacity calculations and colored bands in the calendar.
+- Team Members: create members, set `Location` (choose from the built-in holiday calendars), set `Allocation %`, and add PTO ranges.
+- Calendar View: shows a 4-month, Mon–Fri calendar with sprint bands, member PTO, and holiday markers (only holidays for active member locations are shown).
+- Import / Export: use the import/export control to share PI templates, sprint definitions, or team member lists. Exports only include the data you have filled (team-only exports will not include PI info unless sprints exist).
+- Collapse / Expand Calendar: toggle the calendar panel to save space; the calendar is animated when collapsing.
 
-### `npm run build`
+Import/Export behavior (short)
+------------------------------
+- Exports include only populated sections: PI (only if there are sprints), `sprints`, and/or `members`.
+- Import opens a confirmation dialog showing what the file contains; choose `Merge` to merge data or `Replace All` to replace everything.
+- Member `location` values are normalized on import to match available holiday calendars (exact match, code prefix, or substring).
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Running tests
+-------------
+Run the test suite:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+npm test
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Build and deploy
+----------------
+- Build for production:
 
-### `npm run eject`
+	npm run build
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- Deploy to GitHub Pages (project expect `homepage` set in package.json):
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+	npm run deploy
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+See INSTALL.md for a step-by-step guide and troubleshooting notes.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Files of interest
+-----------------
+- src/: React source files (UI components, calendar, import/export logic)
+- public/: static assets and manifest
+- src/holidays.json: bundled public holidays used by the calendar
 
-## Learn More
+Help and support
+----------------
+Open an issue in the repository or contact the repository owner for questions.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
+License
+-------
+MIT (or your preferred license)
 ### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)

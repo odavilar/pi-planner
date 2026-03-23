@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 

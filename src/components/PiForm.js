@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import React from 'react';
 import { Card, CardContent, TextField, Stack } from '@mui/material';
 import SectionHeader from './shared/SectionHeaderProxy';

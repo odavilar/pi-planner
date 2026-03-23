@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import React from 'react';
 import { Card, CardContent, Stack, Button } from '@mui/material';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';

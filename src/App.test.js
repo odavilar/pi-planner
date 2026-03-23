@@ -1,3 +1,4 @@
+// Copyright (c) 2026 odavilar
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
