@@ -2,7 +2,7 @@
   "name": "pi-planner",
   "version": "0.1.0",
   "private": true,
-  "homepage": "/pi-planner",
+  "homepage": "https://odavilar.github.io/pi-planner",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -24,7 +24,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [
@@ -43,13 +45,15 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  }
-  ,
+  },
   "jest": {
     "moduleNameMapper": {
       "^@mui/x-date-pickers/DatePicker$": "<rootDir>/src/testMocks/DatePickerMock.js",
       "^@mui/x-date-pickers/LocalizationProvider$": "<rootDir>/src/testMocks/LocalizationProviderMock.js",
       "^@mui/x-date-pickers/AdapterDateFns$": "<rootDir>/src/testMocks/AdapterDateFnsMock.js"
     }
+  },
+  "devDependencies": {
+    "gh-pages": "^6.3.0"
   }
 }
