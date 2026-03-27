@@ -1,5 +1,10 @@
 // Copyright (c) 2026 odavilar
 import React, { useMemo, useState } from "react";
+
+const generateId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import {
   CssBaseline,
@@ -414,7 +419,7 @@ export default function App() {
     const next = [
       ...sprints,
       {
-        id: crypto.randomUUID(),
+        id: generateId(),
         startDate: sprintForm.startDate,
         endDate: sprintForm.endDate,
       },
@@ -460,7 +465,7 @@ export default function App() {
       pto: [
         ...m.pto,
         {
-          id: crypto.randomUUID(),
+          id: generateId(),
           fromDate: ptoForm.fromDate,
           toDate,
         },
@@ -490,7 +495,7 @@ export default function App() {
       return;
     }
 
-    setMembers((prev) => [...prev, { ...memberForm, id: crypto.randomUUID() }]);
+    setMembers((prev) => [...prev, { ...memberForm, id: generateId() }]);
     setMemberForm({
       name: "",
       location: "",
@@ -545,7 +550,7 @@ export default function App() {
       ...m,
       pto: [
         ...(m.pto || []),
-        { id: crypto.randomUUID(), fromDate: editPtoForm.fromDate, toDate },
+        { id: generateId(), fromDate: editPtoForm.fromDate, toDate },
       ],
     }));
 
