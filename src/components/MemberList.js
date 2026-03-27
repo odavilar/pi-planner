@@ -71,6 +71,7 @@ export default function MemberList({
           <Typography variant="subtitle1">Draft PTO</Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <PlannerDateField
+              key={`pto-from-${ptoForm._key}`}
               label="From"
               required
               value={ptoForm.fromDate}
@@ -80,6 +81,7 @@ export default function MemberList({
             />
 
             <PlannerDateField
+              key={`pto-to-${ptoForm._key}`}
               label="To"
               value={ptoForm.toDate}
               onChange={(value) => setPtoForm((prev) => ({ ...prev, toDate: value }))}
@@ -155,9 +157,9 @@ export default function MemberList({
                           ))}
 
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-                            <PlannerDateField label="From" required value={editPtoForm.fromDate} onChange={(value) => setEditPtoForm((prev) => ({ ...prev, fromDate: value }))} maxDate={editPtoForm.toDate || undefined} emptyHelperText="Select PTO start date" />
+                            <PlannerDateField key={`edit-pto-from-${editPtoForm._key}`} label="From" required value={editPtoForm.fromDate} onChange={(value) => setEditPtoForm((prev) => ({ ...prev, fromDate: value }))} maxDate={editPtoForm.toDate || undefined} emptyHelperText="Select PTO start date" />
 
-                            <PlannerDateField label="To" value={editPtoForm.toDate} onChange={(value) => setEditPtoForm((prev) => ({ ...prev, toDate: value }))} minDate={editPtoForm.fromDate || undefined} emptyHelperText="Optional — defaults to the same day" />
+                            <PlannerDateField key={`edit-pto-to-${editPtoForm._key}`} label="To" value={editPtoForm.toDate} onChange={(value) => setEditPtoForm((prev) => ({ ...prev, toDate: value }))} minDate={editPtoForm.fromDate || undefined} emptyHelperText="Optional — defaults to the same day" />
 
                             <Button variant="outlined" onClick={addPtoToEditMember}>Add PTO</Button>
                           </Stack>

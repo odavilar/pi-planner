@@ -16,6 +16,7 @@ export default function SprintList({ sprints, sprintForm, setSprintForm, addSpri
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <PlannerDateField
+              key={`sprint-start-${sprintForm._key}`}
               label="Start Date"
               required
               value={sprintForm.startDate}
@@ -26,6 +27,7 @@ export default function SprintList({ sprints, sprintForm, setSprintForm, addSpri
             />
 
             <PlannerDateField
+              key={`sprint-end-${sprintForm._key}`}
               label="End Date"
               required
               value={sprintForm.endDate}

@@ -1,10 +1,5 @@
 // Copyright (c) 2026 odavilar
 import React, { useMemo, useState } from "react";
-
-const generateId = () =>
-  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-    ? crypto.randomUUID()
-    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import {
   CssBaseline,
@@ -46,6 +41,11 @@ import SprintList from "./components/SprintList";
 import MemberList from "./components/MemberList";
 import ImportExport from "./components/ImportExport";
 import CalendarView from "./components/CalendarView";
+
+const generateId = () =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /* ---------------------- Theme ---------------------- */
 
@@ -352,12 +352,13 @@ export default function App() {
   const [sprintForm, setSprintForm] = useState({
     startDate: "",
     endDate: "",
+    _key: 0,
   });
 
   const [members, setMembers] = useState([]);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [editMemberDraft, setEditMemberDraft] = useState(null);
-  const [editPtoForm, setEditPtoForm] = useState({ fromDate: "", toDate: "" });
+  const [editPtoForm, setEditPtoForm] = useState({ fromDate: "", toDate: "", _key: 0 });
   const [memberForm, setMemberForm] = useState({
     name: "",
     location: "",
@@ -365,7 +366,7 @@ export default function App() {
     pto: [],
   });
 
-  const [ptoForm, setPtoForm] = useState({ fromDate: "", toDate: "" });
+  const [ptoForm, setPtoForm] = useState({ fromDate: "", toDate: "", _key: 0 });
 
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -426,7 +427,7 @@ export default function App() {
     ];
 
     setSprints(normalizeSprintNames(next, pi.name));
-    setSprintForm({ startDate: "", endDate: "" });
+    setSprintForm((prev) => ({ startDate: "", endDate: "", _key: prev._key + 1 }));
     showToast("Sprint added successfully.", "success");
   };
 
@@ -472,7 +473,7 @@ export default function App() {
       ],
     }));
 
-    setPtoForm({ fromDate: "", toDate: "" });
+    setPtoForm((prev) => ({ fromDate: "", toDate: "", _key: prev._key + 1 }));
     showToast("PTO added to draft member.", "success");
   };
 
@@ -502,7 +503,7 @@ export default function App() {
       allocation: 100,
       pto: [],
     });
-    setPtoForm({ fromDate: "", toDate: "" });
+    setPtoForm((prev) => ({ fromDate: "", toDate: "", _key: prev._key + 1 }));
     showToast("Member added successfully.", "success");
   };
 
@@ -523,7 +524,7 @@ export default function App() {
   const cancelEditMember = () => {
     setEditingMemberId(null);
     setEditMemberDraft(null);
-    setEditPtoForm({ fromDate: "", toDate: "" });
+    setEditPtoForm((prev) => ({ fromDate: "", toDate: "", _key: prev._key + 1 }));
   };
 
   const onEditMemberChange = (e) => {
@@ -554,7 +555,7 @@ export default function App() {
       ],
     }));
 
-    setEditPtoForm({ fromDate: "", toDate: "" });
+    setEditPtoForm((prev) => ({ fromDate: "", toDate: "", _key: prev._key + 1 }));
     showToast("PTO added to member draft.", "success");
   };
 
